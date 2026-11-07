@@ -3,8 +3,8 @@ import Foundation
 
 enum Brand {
     static let appName = "PingInfoView"
-    static let version = "1.3.0"
-    static let build = "3"
+    static let version = "1.3.1"
+    static let build = "4"
     static let author = "Sumit Kumawat"
     static let website = "www.sumitkumawat.com"
     static let websiteURL = URL(string: "https://www.sumitkumawat.com")!

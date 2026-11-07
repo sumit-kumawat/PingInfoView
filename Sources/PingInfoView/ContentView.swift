@@ -87,10 +87,51 @@ struct ContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            scanControls
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var scanControls: some View {
+        HStack(spacing: 2) {
+            scanButton(
+                "New Scan",
+                "arrow.triangle.2.circlepath",
+                "Clear the current results once, then start (⌥⌘R)",
+                enabled: !model.records.isEmpty
+            ) { model.newScan() }
+            scanButton(
+                "Rescan",
+                "arrow.clockwise",
+                model.settings.clearResultsOnStart
+                    ? "Scan again and clear the current results once (⌘R)"
+                    : "Scan again and keep the current results (⌘R)",
+                enabled: !model.running && !model.records.isEmpty
+            ) { model.start() }
+            scanButton(
+                "Stop",
+                "stop.fill",
+                "Stop (⌘.)",
+                enabled: model.running
+            ) { model.stop() }
+        }
+        .padding(2)
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func scanButton(_ title: String, _ symbol: String, _ help: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(!enabled)
+        .help("\(title). \(help)")
+        .accessibilityLabel(title)
     }
 
     private func count(_ title: String, _ value: Int, _ color: Color) -> some View {
@@ -152,20 +193,6 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
-            Button { model.start() } label: { Label("Start", systemImage: "play.fill") }
-                .help(model.settings.clearResultsOnStart ? "Start a scan and clear the current results once (⌘R)" : "Start pinging (⌘R)")
-                .disabled(model.running || model.records.isEmpty)
-            Button { model.newScan() } label: { Label("New Scan", systemImage: "arrow.triangle.2.circlepath") }
-                .help("Clear the current results once, then start (⌥⌘R)")
-                .disabled(model.records.isEmpty)
-            Button { model.stop() } label: { Label("Stop", systemImage: "stop.fill") }
-                .help("Stop (⌘.)")
-                .disabled(!model.running)
-            Button { model.resetCounters() } label: { Label("Reset", systemImage: "arrow.counterclockwise") }
-                .help("Reset counters")
-                .disabled(model.records.isEmpty)
-        }
         ToolbarItemGroup(placement: .primaryAction) {
             Menu {
                 Picker("Show", selection: displayMode) {

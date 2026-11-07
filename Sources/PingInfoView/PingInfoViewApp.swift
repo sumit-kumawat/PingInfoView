@@ -82,7 +82,7 @@ struct AppCommands: Commands {
                 .disabled(model.selection.isEmpty)
         }
         CommandMenu("Monitor") {
-            Button("Start Pinging") { model.start() }
+            Button("Rescan") { model.start() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.running || model.records.isEmpty)
             Button("New Scan") { model.newScan() }

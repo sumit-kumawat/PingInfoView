@@ -263,13 +263,27 @@ import Testing
     #expect(v4.last == "127.0.0.1")
 }
 
+@Test func hostsIPsFQDNsAndSimpleNames() {
+    let parsed = HostParser.parse(
+        "router printer\nfileserver.example.com\nhttps://example.com/status 10.1.1.1/\nserver.example.com.",
+        options: ParseOptions(mode: .automatic)
+    )
+    #expect(parsed.warnings.isEmpty)
+    #expect(parsed.targets.map(\.host) == ["router", "printer", "fileserver.example.com", "example.com", "10.1.1.1", "server.example.com"])
+
+    let port = HostParser.parse("https://example.com:443/health", options: ParseOptions(mode: .plain))
+    #expect(port.targets.map(\.host) == ["example.com"])
+    #expect(port.targets[0].port == 443)
+    #expect(HostParser.parse("10.0.0.0/30", options: ParseOptions()).targets.map(\.host) == ["10.0.0.0", "10.0.0.1", "10.0.0.2", "10.0.0.3"])
+}
+
 @Test func automaticFormatSeesDescriptionsWithoutGroups() {
-    let described = HostParser.parse("1.1.1.1 Cloudflare\n8.8.8.8 Google DNS", options: ParseOptions(mode: .automatic))
+    let described = HostParser.parse("1.1.1.1 Cloudflare\n8.8.8.8 Google DNS", options: ParseOptions(mode: .described))
     #expect(described.targets.map(\.host) == ["1.1.1.1", "8.8.8.8"])
     #expect(described.targets.map(\.description) == ["Cloudflare", "Google DNS"])
 
-    let plain = HostParser.parse("1.1.1.1 8.8.8.8 example.com", options: ParseOptions(mode: .automatic))
-    #expect(plain.targets.count == 3)
+    let plain = HostParser.parse("1.1.1.1 8.8.8.8 example.com router", options: ParseOptions(mode: .automatic))
+    #expect(plain.targets.map(\.host) == ["1.1.1.1", "8.8.8.8", "example.com", "router"])
 }
 
 @Test func columnsFitWithoutSideScrolling() {
@@ -333,8 +347,8 @@ import Testing
 
 @Test func brandingIsFixed() {
     #expect(Brand.appName == "PingInfoView")
-    #expect(Brand.version == "1.3.0")
-    #expect(Brand.build == "3")
+    #expect(Brand.version == "1.3.1")
+    #expect(Brand.build == "4")
     #expect(Brand.author == "Sumit Kumawat")
     #expect(Brand.website == "www.sumitkumawat.com")
     #expect(Brand.websiteURL.absoluteString == "https://www.sumitkumawat.com")

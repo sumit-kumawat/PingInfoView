@@ -99,12 +99,52 @@ enum HostParser {
         }
     }
 
+    /// Accepts an IP, a CIDR or range, an FQDN, or a single-label hostname such as `router`.
     private static func looksLikeHost(_ token: String) -> Bool {
-        let cleaned = token.trimmingCharacters(in: CharacterSet(charactersIn: ",;"))
+        let cleaned = normalizeHostToken(token.trimmingCharacters(in: CharacterSet(charactersIn: ",;")))
         if cleaned.isEmpty || cleaned.hasPrefix("#") { return true }
-        if ipv4Value(cleaned) != nil || isIPv6Literal(cleaned) || cleaned.hasPrefix("[") { return true }
-        if cleaned.contains(".") || cleaned.contains("/") || cleaned.contains(":") { return true }
-        return cleaned.lowercased() == "localhost"
+        if cleaned.contains("/") { return true }
+        guard let endpoint = splitHostAndPort(cleaned) else { return false }
+        return isIPAddress(endpoint.host) || isHostname(endpoint.host)
+    }
+
+    static func isHostname(_ value: String) -> Bool {
+        var name = value
+        if name.hasSuffix("."), name.contains(where: \.isLetter) {
+            name.removeLast()
+        }
+        guard !name.isEmpty, name.count <= 253 else { return false }
+        let labels = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard !labels.isEmpty, labels.allSatisfy({ !$0.isEmpty && $0.count <= 63 }) else { return false }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        for label in labels {
+            if label.hasPrefix("-") || label.hasSuffix("-") { return false }
+            if label.unicodeScalars.contains(where: { !allowed.contains($0) }) { return false }
+        }
+        return true
+    }
+
+    /// Drops a web scheme, a trailing slash, and a URL path. Leaves `10.0.0.0/24` alone.
+    static func normalizeHostToken(_ raw: String) -> String {
+        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        while value.hasSuffix("/") { value.removeLast() }
+        let lower = value.lowercased()
+        if lower.hasPrefix("https://") {
+            value.removeFirst("https://".count)
+        } else if lower.hasPrefix("http://") {
+            value.removeFirst("http://".count)
+        }
+        while value.hasSuffix("/") { value.removeLast() }
+        if value.hasSuffix("."), value.contains(where: \.isLetter) {
+            value.removeLast()
+        }
+        guard let slash = value.firstIndex(of: "/"), !value.hasPrefix("[") else { return value }
+        let head = String(value[..<slash])
+        let tail = String(value[value.index(after: slash)...])
+        if ipv4Value(head) != nil, Int(tail) != nil {
+            return value
+        }
+        return head
     }
 
     private static func groupName(in line: String) -> String? {
@@ -122,7 +162,7 @@ enum HostParser {
         targets: inout [ParsedTarget],
         warnings: inout [String]
     ) {
-        let cleaned = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = normalizeHostToken(token)
         guard !cleaned.isEmpty else { return }
         if cleaned.count > 512 {
             warnings.append("Skipped an entry longer than 512 characters.")
@@ -166,6 +206,10 @@ enum HostParser {
         }
 
         guard let endpoint = splitHostAndPort(cleaned) else {
+            warnings.append("Could not understand \(cleaned).")
+            return
+        }
+        if !isIPAddress(endpoint.host) && !isHostname(endpoint.host) {
             warnings.append("Could not understand \(cleaned).")
             return
         }

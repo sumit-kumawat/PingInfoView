@@ -46,7 +46,7 @@ final class StatusItemController: NSObject {
         }
         menu.addItem(.separator())
         add("Show \(Brand.appName)", action: #selector(showWindow), enabled: true)
-        add("Start Pinging", action: #selector(startPinging), enabled: !running)
+        add("Rescan", action: #selector(startPinging), enabled: !running)
         add("New Scan", action: #selector(startNewScan), enabled: true)
         add("Stop", action: #selector(stopPinging), enabled: running)
         menu.addItem(.separator())

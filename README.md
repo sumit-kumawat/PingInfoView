@@ -13,8 +13,8 @@ This is a native macOS application. It is not a wrapper around the Windows PingI
 The ready-to-use builds are in `dist/` after packaging:
 
 - `dist/PingInfoView.app` — the application
-- `dist/PingInfoView-1.3.0.dmg` — drag the app to Applications
-- `dist/PingInfoView-1.3.0.pkg` — installs the app into `/Applications`
+- `dist/PingInfoView-1.3.1.dmg` — drag the app to Applications
+- `dist/PingInfoView-1.3.1.pkg` — installs the app into `/Applications`
 - `dist/SHA256SUMS.txt` — checksums for the disk image and package
 
 One universal build runs natively on Apple silicon and Intel Macs with macOS 13 Ventura or later.
@@ -27,7 +27,7 @@ The table always fits the width of the window, so there is no sideways scrolling
 
 | Shortcut | Action |
 | --- | --- |
-| ⌘R | Start. Clears the current results first when that option is on |
+| ⌘R | Rescan. Clears the current results first when that option is on |
 | ⌥⌘R | New Scan: clear the current results once, then start |
 | ⌘. | Stop |
 | ⇧⌘R | Reset counters |

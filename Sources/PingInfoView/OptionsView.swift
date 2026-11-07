@@ -71,7 +71,7 @@ struct OptionsView: View {
                 }
                 Button("Load File…") { loadFile() }
             }
-            Text("One host per line, or several separated by spaces or commas. Use address:port for a TCP check. In IP and description mode, put the description after the address. Lines starting with # are ignored. Start a section with Group: Name.")
+            Text("One host per line, or several separated by spaces or commas. Use an IP address, an FQDN, or a simple name such as router. https://example.com/path and router/ are accepted. Use address:port for a TCP check. In IP and description mode, put the description after the address. Lines starting with # are ignored. Start a section with Group: Name.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

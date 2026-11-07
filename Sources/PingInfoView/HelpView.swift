@@ -39,7 +39,8 @@ private let helpBody = """
 PingInfoView watches many hosts in one table. Add names or addresses, press Start, and the table shows which hosts answer, how often they fail, and how long each reply takes.
 
 Hosts
-• Separate hosts with spaces, commas, or new lines.
+• Separate hosts with spaces, commas, or new lines. An entry can be an IP address, an FQDN such as server.example.com, or a simple name such as router.
+• A trailing slash or a web address is accepted: https://example.com/status and router/ both become hosts. 10.0.0.0/24 is still a range.
 • 192.168.0.10-192.168.0.20, 192.168.0.10-20, and 192.168.0.0/24 expand to ranges. Ranges stop at the expansion limit.
 • 192.168.1.10:443 or example.com:80 checks that a TCP connection opens. No application data is sent.
 • In “IP and description” format, put a label after the address: 192.168.1.10 Main Server
@@ -60,7 +61,7 @@ Selecting hosts
 • Right-click a selected row to copy, enable, or ping every selected host. Right-click any other row to act on that host alone.
 
 Scan
-Start continues the counts you already have. New Scan (⌥⌘R) clears succeeded, failed, and history once, then starts. Later rounds in that scan keep the new counts. Turn on “Clear existing results once when a scan starts” in Ping Options to make Start do the same. Reset Counters clears the numbers and leaves the scan stopped.
+The header has three icons: New Scan, Rescan, and Stop. New Scan (⌥⌘R) clears succeeded, failed, and history once, then starts. Rescan (⌘R) starts again and keeps the counts you already have. Later rounds in a scan keep the new counts. Turn on “Clear existing results once when a scan starts” in Ping Options to make Rescan clear once too. Reset Counters clears the numbers and leaves the scan stopped.
 
 Results
 The table keeps succeeded and failed counts, the failure percentage, the last reply, and the minimum, maximum, and average of successful replies. The failure streak stays visible after a host recovers, and the longest streak keeps the time it was reached.
