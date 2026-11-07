@@ -1,0 +1,12 @@
+# Sample host list for PingInfoView
+# Use "IP and description" format, or leave the format on Automatic.
+
+Group: DNS
+1.1.1.1 Cloudflare DNS
+8.8.8.8 Google DNS
+
+Group: Local
+127.0.0.1 This Mac
+
+Group: Web
+example.com:443 Example website

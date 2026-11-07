@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>PingInfoView</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.sumitkumawat.pinginfoview</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>PingInfoView</string>
+  <key>CFBundleDisplayName</key>
+  <string>PingInfoView</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.3.0</string>
+  <key>CFBundleVersion</key>
+  <string>3</string>
+  <key>CFBundleGetInfoString</key>
+  <string>PingInfoView 1.3.0 by Sumit Kumawat, www.sumitkumawat.com</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>LSArchitecturePriority</key>
+  <array>
+    <string>arm64</string>
+    <string>x86_64</string>
+  </array>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSHumanReadableCopyright</key>
+  <string>© 2026 Sumit Kumawat · www.sumitkumawat.com · hello@sumitkumawat.com</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSSupportsAutomaticTermination</key>
+  <false/>
+  <key>NSSupportsSuddenTermination</key>
+  <false/>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>PingInfoView contacts hosts on your network to measure whether they respond.</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Host List</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.plain-text</string>
+        <string>public.text</string>
+        <string>public.comma-separated-values-text</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
