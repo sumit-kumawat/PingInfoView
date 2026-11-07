@@ -74,7 +74,21 @@ example.com:443 Example website
 
 `#` begins a comment. `Group: Name` starts a group. A port uses TCP instead of ICMP. A sample file is in `Examples/hosts.txt`.
 
-If a lot of hosts are up but some are reported as failed, lower **Concurrent pings** in Ping Options. Very large ranges are not expanded past the expansion limit.
+## How hosts are checked
+
+PingInfoView sends ICMP echo requests from inside the app over unprivileged ICMP sockets, the same way Windows PingInfoView uses `IcmpSendEcho`, so it needs no admin rights and can have thousands of hosts in flight. If those sockets are unavailable it falls back to `/sbin/ping`. A host counts as failed only when every try in a round fails (**Tries per round**, default 2), which avoids "down" results from one lost packet.
+
+Names are looked up with DNS and the Mac's search domains first. When **Find local names** is on, a simple name such as `printer` is also tried as `printer.local` (mDNS), over LLMNR, and over NetBIOS. Windows PCs, NAS boxes, and printers that never registered in DNS are found the same way Windows finds them. Reverse names for private addresses fall back to a NetBIOS node-status query.
+
+IPv6 addresses are always accepted. **Prefer IPv6** only changes which address is used when a name has both.
+
+### Hosts that fail here but not on Windows
+
+- **Local Network permission.** macOS lets an app reach the LAN only after you allow it. If PingInfoView shows a red "blocking this Mac's local network" bar, open **System Settings › Privacy & Security › Local Network** and turn PingInfoView on.
+- **The device doesn't answer ping.** Many routers and firewalls drop ICMP. Add a port, for example `192.168.1.1:53` or `server:443`, to check it with TCP instead.
+- **A different network.** The Mac may be on a VPN or another subnet with different firewall rules than the Windows PC.
+
+Large ranges are not expanded past the **Expansion limit** (default 65,536; up to 1,048,576).
 
 ## Command line
 
@@ -86,7 +100,7 @@ PingInfoView.app/Contents/MacOS/PingInfoView /shtml report.html 1.1.1.1 example.
 PingInfoView.app/Contents/MacOS/PingInfoView --help
 ```
 
-`/stext`, `/stab`, `/scomma`, `/stabular`, `/shtml`, `/sverhtml`, and `/sxml` choose the output file. `/PingTimeout`, `/PingSize`, `/MaxConcurrentPings`, `/IPv6`, and `/IPHostDescFormat` match the options in the window.
+`/stext`, `/stab`, `/scomma`, `/stabular`, `/shtml`, `/sverhtml`, and `/sxml` choose the output file. `/PingTimeout`, `/PingSize`, `/MaxConcurrentPings`, `/Attempts`, `/LocalNames`, `/IPv6`, and `/IPHostDescFormat` match the options in the window.
 
 ## Custom menu
 

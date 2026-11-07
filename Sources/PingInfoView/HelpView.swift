@@ -63,6 +63,11 @@ Selecting hosts
 Scan
 The header has three icons: New Scan, Rescan, and Stop. New Scan (⌥⌘R) clears succeeded, failed, and history once, then starts. Rescan (⌘R) starts again and keeps the counts you already have. Later rounds in a scan keep the new counts. Turn on “Clear existing results once when a scan starts” in Ping Options to make Rescan clear once too. Reset Counters clears the numbers and leaves the scan stopped.
 
+How hosts are checked
+Pings are sent from inside the app over ICMP, so no admin rights are needed and hundreds of hosts are checked at once. A host fails a round only if every try fails (Tries per round, default 2). Simple names such as printer are also looked up with mDNS (printer.local), LLMNR, and NetBIOS, the way Windows finds them. IPv6 addresses always work; “Prefer IPv6” only picks the family when a name has both.
+
+If LAN hosts all fail and a red bar says macOS is blocking the local network, open System Settings → Privacy & Security → Local Network and turn on PingInfoView. A device that drops ping, such as many routers, can be checked with a port instead: 192.168.1.1:53.
+
 Results
 The table keeps succeeded and failed counts, the failure percentage, the last reply, and the minimum, maximum, and average of successful replies. The failure streak stays visible after a host recovers, and the longest streak keeps the time it was reached.
 

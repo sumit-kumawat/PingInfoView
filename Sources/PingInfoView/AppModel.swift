@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     @Published var roundIndex = 0
     @Published var lastRoundSeconds: Double?
     @Published var customMenu: [CustomMenuItem] = []
+    /// macOS refused to send to a private address in the last round, which means Local Network access is off.
+    @Published var localNetworkBlocked = false
 
     var openMainWindow: (() -> Void)?
     var focusTable: (() -> Void)?
@@ -213,7 +215,9 @@ final class AppModel: ObservableObject {
                 records[index].didReverseLookup = false
             }
         }
-        if previous.resolveEveryPing != next.resolveEveryPing || previous.allowIPv6 != next.allowIPv6 {
+        if previous.resolveEveryPing != next.resolveEveryPing || previous.allowIPv6 != next.allowIPv6
+            || previous.findLocalNames != next.findLocalNames {
+            NameResolver.clearCache()
             for index in records.indices where !HostParser.isIPAddress(records[index].target.host) {
                 records[index].resolvedAddress = nil
             }
@@ -310,6 +314,8 @@ final class AppModel: ObservableObject {
     }
 
     private func wipeResults() {
+        NameResolver.clearCache()
+        localNetworkBlocked = false
         for index in records.indices {
             records[index].clearStats()
         }
@@ -691,7 +697,9 @@ final class AppModel: ObservableObject {
         }
         var beep = false
         var logEntries: [(HostRecord, PingSample)] = []
+        var blocked = false
         for result in results where !result.sample.skipped {
+            blocked = blocked || result.sample.blockedLocally
             guard let index = position[result.id] else { continue }
             let effect = records[index].ingest(result.sample, settings: activeSettings)
             beep = beep || effect.beepFailure || effect.beepRecovery
@@ -709,6 +717,7 @@ final class AppModel: ObservableObject {
         trimHistory()
         writeLog(logEntries, settings: activeSettings)
         if beep { playAlert() }
+        if localNetworkBlocked != blocked { localNetworkBlocked = blocked }
         status = "Round \(roundIndex) · \(upCount) up · \(downCount) down"
         syncStatusItem()
     }
@@ -719,7 +728,7 @@ final class AppModel: ObservableObject {
         guard HostParser.isIPAddress(host) else { return }
         records[index].didReverseLookup = true
         let id = records[index].id
-        ReverseResolver.shared.resolve(host) { name in
+        ReverseResolver.shared.resolve(host, findLocalNames: settings.findLocalNames) { name in
             Task { @MainActor in
                 AppModel.shared.applyReverse(id: id, name: name)
             }

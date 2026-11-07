@@ -36,11 +36,8 @@ import Testing
 }
 
 @Test func ipv6LiteralAndBrackets() {
-    let blocked = HostParser.parse("[2001:db8::1]:443", options: ParseOptions(allowIPv6: false))
-    #expect(blocked.targets.isEmpty)
-    #expect(!blocked.warnings.isEmpty)
-
-    let allowed = HostParser.parse("[2001:db8::1]:443 fe80::1", options: ParseOptions(mode: .plain, allowIPv6: true))
+    let allowed = HostParser.parse("[2001:db8::1]:443 fe80::1", options: ParseOptions(mode: .plain))
+    #expect(allowed.warnings.isEmpty)
     #expect(allowed.targets.map(\.host) == ["2001:db8::1", "fe80::1"])
     #expect(allowed.targets[0].port == 443)
 }
@@ -154,6 +151,85 @@ import Testing
     let freshScan = try AppSettings.decodeStored(Data("{\"clearResultsOnStart\":true}".utf8))
     #expect(freshScan.clearResultsOnStart)
     #expect(try AppSettings.decodeStored(Data("{}".utf8)) == AppSettings().normalized())
+
+    let older = try AppSettings.decodeStored(Data("{\"maxConcurrent\":50,\"expansionLimit\":4096}".utf8))
+    #expect(older.maxConcurrent == 200)
+    #expect(older.expansionLimit == 65_536)
+    #expect(older.attempts == 2)
+    #expect(older.findLocalNames)
+    let chosen = try AppSettings.decodeStored(Data("{\"maxConcurrent\":50,\"attempts\":1}".utf8))
+    #expect(chosen.maxConcurrent == 50)
+    #expect(chosen.attempts == 1)
+}
+
+@Test func icmpPacketsBuildAndParse() {
+    #expect(ICMPPacket.checksum([0x45, 0x00, 0x00, 0x1c]) == ~UInt16(0x451c))
+    let payload = ICMPPacket.payload(size: 32, token: 0xA1B2C3D4)
+    #expect(payload.count == 32)
+    #expect(ICMPPacket.token(in: payload) == 0xA1B2C3D4)
+    let request = ICMPPacket.echoRequest(ipv6: false, identifier: 0x1234, sequence: 7, payload: payload)
+    #expect(ICMPPacket.checksum(request) == 0)
+
+    var reply = request
+    reply[0] = ICMPPacket.echoReplyV4
+    let header: [UInt8] = [0x45, 0, 0, 60, 0, 0, 0, 0, 57, 1, 0, 0, 8, 8, 8, 8, 192, 168, 1, 2]
+    #expect(ICMPPacket.parse(header + reply, ipv6: false) == .reply(identifier: 0x1234, sequence: 7, ttl: 57, payload: payload))
+    #expect(ICMPPacket.parse(reply, ipv6: false) == .reply(identifier: 0x1234, sequence: 7, ttl: nil, payload: payload))
+
+    let unreachable: [UInt8] = [3, 1, 0, 0, 0, 0, 0, 0] + [0x45, 0, 0, 60, 0, 0, 0, 0, 64, 1, 0, 0, 192, 168, 1, 2, 10, 0, 0, 9] + Array(request.prefix(8))
+    #expect(ICMPPacket.parse(header + unreachable, ipv6: false) == .failure(identifier: 0x1234, sequence: 7, message: "Host unreachable"))
+
+    let v6 = ICMPPacket.echoRequest(ipv6: true, identifier: 1, sequence: 2, payload: [9, 9, 9, 9])
+    var v6Reply = v6
+    v6Reply[0] = ICMPPacket.echoReplyV6
+    #expect(ICMPPacket.parse(v6Reply, ipv6: true, hopLimit: 64) == .reply(identifier: 1, sequence: 2, ttl: 64, payload: [9, 9, 9, 9]))
+}
+
+@Test func localNameProtocols() {
+    let encoded = NetBIOS.encodedName("ab")
+    #expect(encoded.count == 34)
+    #expect(encoded.first == 0x20 && encoded.last == 0)
+    #expect(Array(encoded[1...4]) == Array("EBEC".utf8))
+    #expect(Array(encoded[5...6]) == Array("CA".utf8))
+    #expect(Array(encoded[31...32]) == Array("AA".utf8))
+
+    let id: UInt16 = 0x0102
+    let query = NetBIOS.nameQuery("ab", id: id)
+    var response = Array(query.prefix(12))
+    response[2] = 0x85
+    response[3] = 0x00
+    response[4] = 0; response[5] = 0
+    response[6] = 0; response[7] = 1
+    response += encoded + [0, 0x20, 0, 1, 0, 0, 1, 0, 0, 6, 0, 0, 192, 168, 1, 50]
+    #expect(NetBIOS.address(in: response, id: id) == "192.168.1.50")
+    #expect(NetBIOS.address(in: response, id: id &+ 1) == nil)
+
+    var status = Array(query.prefix(12))
+    status[2] = 0x84; status[3] = 0
+    status[4] = 0; status[5] = 0
+    status[6] = 0; status[7] = 1
+    let entry = Array("NAS-BOX".utf8) + [UInt8](repeating: 0x20, count: 8) + [0x00, 0x04, 0x00]
+    let group = Array("WORKGROUP".utf8) + [UInt8](repeating: 0x20, count: 6) + [0x00, 0x84, 0x00]
+    let body: [UInt8] = [2] + group + entry
+    status += NetBIOS.encodedName("", wildcard: true) + [0, 0x21, 0, 1, 0, 0, 0, 0, 0, UInt8(body.count)] + body
+    #expect(NetBIOS.machineName(in: status, id: id) == "NAS-BOX")
+
+    let llmnr = LLMNR.packet("printer", id: 9)
+    #expect(llmnr.count == 12 + 1 + 7 + 1 + 4)
+    var answer = llmnr
+    answer[2] = 0x80
+    answer[6] = 0; answer[7] = 1
+    answer += [0xC0, 0x0C, 0, 1, 0, 1, 0, 0, 0, 30, 0, 4, 10, 0, 0, 7]
+    #expect(LLMNR.answer(answer, id: 9) == "10.0.0.7")
+    #expect(NetworkErrors.isPrivateIPv4("192.168.1.1"))
+    #expect(NetworkErrors.isPrivateIPv4("172.20.0.1"))
+    #expect(!NetworkErrors.isPrivateIPv4("8.8.8.8"))
+}
+
+@Test func namesResolveWithoutBlocking() async {
+    #expect(await NameResolver.resolve("127.0.0.1", preferIPv6: false, findLocalNames: true, timeoutMs: 500)?.source == .literal)
+    #expect(await NameResolver.resolve("localhost", preferIPv6: false, findLocalNames: false, timeoutMs: 2000)?.address == "127.0.0.1")
+    #expect(await NameResolver.resolve("[::1]", preferIPv6: false, findLocalNames: false, timeoutMs: 500)?.address == "::1")
 }
 
 @Test func commandQuotingAndLaunchOptions() {

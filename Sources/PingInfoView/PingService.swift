@@ -9,8 +9,11 @@ struct PingRequest: Equatable, Sendable {
     var payloadSize: Int
     var ttl: Int
     var dontFragment: Bool
+    /// Prefer an IPv6 address when a host name has both. IPv6 literals are always allowed.
     var allowIPv6: Bool
     var sourceAddress: String
+    var attempts: Int = 1
+    var findLocalNames: Bool = true
 }
 
 struct PingSample: Equatable, Sendable {
@@ -22,6 +25,9 @@ struct PingSample: Equatable, Sendable {
     var address: String?
     var error: String?
     var sentAt = Date()
+    /// The send failed before leaving this Mac with "no route" to a private address, which is what macOS
+    /// reports while Local Network access is denied or still waiting for the user.
+    var blockedLocally = false
 
     static func skipped() -> PingSample {
         PingSample(skipped: true)
@@ -174,13 +180,13 @@ final class ReverseResolver: @unchecked Sendable {
     private init() {
         queue = OperationQueue()
         queue.name = "PingInfoView.reverse-dns"
-        queue.maxConcurrentOperationCount = 8
+        queue.maxConcurrentOperationCount = 16
         queue.qualityOfService = .utility
     }
 
-    func resolve(_ address: String, completion: @escaping @Sendable (String?) -> Void) {
+    func resolve(_ address: String, findLocalNames: Bool, completion: @escaping @Sendable (String?) -> Void) {
         queue.addOperation {
-            completion(DNS.reverse(address))
+            completion(NameResolver.reverse(address, findLocalNames: findLocalNames))
         }
     }
 }
@@ -188,7 +194,8 @@ final class ReverseResolver: @unchecked Sendable {
 enum RequestBuilder {
     static func request(for record: HostRecord, settings: AppSettings) -> PingRequest {
         let destination: String
-        if !settings.resolveEveryPing, let cached = record.resolvedAddress, !cached.isEmpty {
+        let cacheUsable = !settings.resolveEveryPing && record.lastStatus != .down
+        if cacheUsable, let cached = record.resolvedAddress, !cached.isEmpty {
             destination = cached
         } else {
             destination = record.target.host
@@ -201,7 +208,9 @@ enum RequestBuilder {
             ttl: settings.ttl,
             dontFragment: settings.dontFragment,
             allowIPv6: settings.allowIPv6,
-            sourceAddress: settings.sourceAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+            sourceAddress: settings.sourceAddress.trimmingCharacters(in: .whitespacesAndNewlines),
+            attempts: settings.attempts,
+            findLocalNames: settings.findLocalNames
         )
     }
 }
@@ -238,41 +247,70 @@ enum PingArguments {
 }
 
 enum PingService {
-    private static let resolverQueue = DispatchQueue(label: "PingInfoView.resolve", qos: .utility, attributes: .concurrent)
     private static let networkQueue = DispatchQueue(label: "PingInfoView.tcp", qos: .utility, attributes: .concurrent)
 
+    /// Resolves once, then tries up to `attempts` times. One sample comes back per round, like PingInfoView on Windows.
     static func probe(_ request: PingRequest) async -> PingSample {
-        if request.port != nil {
-            return await tcpProbe(request)
-        }
-        return await icmpProbe(request)
-    }
-
-    private static func icmpProbe(_ request: PingRequest) async -> PingSample {
         let sentAt = Date()
         let host = stripBrackets(request.destination)
-        let route = await chooseFamily(host, allowIPv6: request.allowIPv6)
-        var sample = await runPing(ipv6: route.ipv6, host: route.target, request: request, sentAt: sentAt)
-        if sample.address == nil, HostParser.isIPAddress(route.target) {
-            sample.address = route.target
+        guard let resolved = await NameResolver.resolve(
+            host,
+            preferIPv6: request.allowIPv6,
+            findLocalNames: request.findLocalNames,
+            timeoutMs: request.timeoutMs
+        ) else {
+            return PingSample(success: false, error: "Unknown host", sentAt: sentAt)
         }
-        return sample
-    }
-
-    private static func chooseFamily(_ host: String, allowIPv6: Bool) async -> (ipv6: Bool, target: String) {
-        if HostParser.isIPv6Literal(host) { return (true, host) }
-        if HostParser.ipv4Value(host) != nil || !allowIPv6 { return (false, host) }
-        return await withCheckedContinuation { continuation in
-            resolverQueue.async {
-                if let ipv6 = DNS.lookup(host, family: .v6) {
-                    continuation.resume(returning: (true, ipv6))
-                } else if let ipv4 = DNS.lookup(host, family: .v4) {
-                    continuation.resume(returning: (false, ipv4))
-                } else {
-                    continuation.resume(returning: (false, host))
-                }
+        let tries = max(1, min(request.attempts, 10))
+        var last = PingSample(success: false, address: resolved.address, error: "Timeout", sentAt: sentAt)
+        for attempt in 0..<tries {
+            if Task.isCancelled { break }
+            var sample = request.port != nil
+                ? await tcpProbe(request, address: resolved.address)
+                : await icmpProbe(request, address: resolved.address)
+            sample.sentAt = sentAt
+            if sample.address == nil { sample.address = resolved.address }
+            last = sample
+            if sample.success || !retryable(sample) { break }
+            if attempt + 1 < tries {
+                try? await Task.sleep(for: .milliseconds(120))
             }
         }
+        return last
+    }
+
+    private static func retryable(_ sample: PingSample) -> Bool {
+        switch sample.error {
+        case "Connection refused", "Source address is not on this Mac", "Not permitted", "Packet too big":
+            return false
+        default:
+            return true
+        }
+    }
+
+    private static func icmpProbe(_ request: PingRequest, address: String) async -> PingSample {
+        let options = ICMPOptions(
+            payloadSize: request.payloadSize,
+            ttl: request.ttl,
+            dontFragment: request.dontFragment,
+            source: request.sourceAddress
+        )
+        let reply = await ICMPEngine.shared.ping(address, options: options, timeoutMs: request.timeoutMs)
+        if reply.unavailable {
+            return await runPing(ipv6: HostParser.isIPv6Literal(address), host: address, request: request, sentAt: Date())
+        }
+        var sample = PingSample(
+            success: reply.success,
+            latencyMs: reply.latencyMs,
+            ttl: reply.ttl,
+            replyAddress: reply.success ? reply.from : nil,
+            address: address,
+            error: reply.error
+        )
+        if reply.sendErrno == EHOSTUNREACH, NetworkErrors.isPrivateIPv4(address) {
+            sample.blockedLocally = true
+        }
+        return sample
     }
 
     private static func runPing(ipv6: Bool, host: String, request: PingRequest, sentAt: Date) async -> PingSample {
@@ -326,9 +364,8 @@ enum PingService {
         }
     }
 
-    private static func tcpProbe(_ request: PingRequest) async -> PingSample {
+    private static func tcpProbe(_ request: PingRequest, address host: String) async -> PingSample {
         let sentAt = Date()
-        let host = stripBrackets(request.destination)
         guard let port = request.port, let nwPort = NWEndpoint.Port(rawValue: port) else {
             return PingSample(success: false, error: "Invalid port", sentAt: sentAt)
         }
@@ -337,8 +374,8 @@ enum PingService {
         options.connectionTimeout = max(1, Int(ceil(Double(request.timeoutMs) / 1000)))
         options.noDelay = true
         let parameters = NWParameters(tls: nil, tcp: options)
-        if !request.allowIPv6, let ip = parameters.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
-            ip.version = .v4
+        if let source = SocketAddress(numeric: request.sourceAddress), source.isIPv6 == HostParser.isIPv6Literal(host) {
+            parameters.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host(request.sourceAddress), port: 0)
         }
         let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: parameters)
         let timeout = max(100, request.timeoutMs)

@@ -111,8 +111,7 @@ struct ParseOptions: Equatable, Sendable {
     var mode: HostListFormat = .automatic
     var skipFirstInCIDR = false
     var skipLastInCIDR = false
-    var expansionLimit = 4096
-    var allowIPv6 = false
+    var expansionLimit = 65_536
 }
 
 struct AppSettings: Codable, Equatable, Sendable {
@@ -122,8 +121,13 @@ struct AppSettings: Codable, Equatable, Sendable {
     var intervalSeconds: Int = 30
     var timeoutMs: Int = 2000
     var payloadSize: Int = 32
-    var maxConcurrent: Int = 50
+    var maxConcurrent: Int = 200
+    /// Prefer IPv6 when a name has both address families. IPv6 literals are always pinged over IPv6.
     var allowIPv6: Bool = false
+    /// Tries per round before a host counts as failed. Windows PingInfoView users often see one lost packet as "down".
+    var attempts: Int = 2
+    /// Look up single-label names with mDNS, LLMNR, and NetBIOS when DNS has no answer, as Windows does.
+    var findLocalNames: Bool = true
     var resolveAddresses: Bool = true
     var resolveEveryPing: Bool = false
     var startImmediately: Bool = false
@@ -151,7 +155,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var includeExportHeader: Bool = true
     var skipFirstInCIDR: Bool = false
     var skipLastInCIDR: Bool = false
-    var expansionLimit: Int = 4096
+    var expansionLimit: Int = 65_536
     var alwaysOnTop: Bool = false
     var menuBarIcon: Bool = false
     var startHidden: Bool = false
@@ -172,8 +176,7 @@ struct AppSettings: Codable, Equatable, Sendable {
             mode: hostListFormat,
             skipFirstInCIDR: skipFirstInCIDR,
             skipLastInCIDR: skipLastInCIDR,
-            expansionLimit: expansionLimit,
-            allowIPv6: allowIPv6
+            expansionLimit: expansionLimit
         )
     }
 
@@ -192,13 +195,14 @@ struct AppSettings: Codable, Equatable, Sendable {
         copy.intervalSeconds = copy.intervalSeconds.clamped(to: 1...86_400)
         copy.timeoutMs = copy.timeoutMs.clamped(to: 100...120_000)
         copy.payloadSize = copy.payloadSize.clamped(to: 0...65_507)
-        copy.maxConcurrent = copy.maxConcurrent.clamped(to: 1...500)
+        copy.maxConcurrent = copy.maxConcurrent.clamped(to: 1...4096)
+        copy.attempts = copy.attempts.clamped(to: 1...10)
         copy.alertAfterConsecutive = copy.alertAfterConsecutive.clamped(to: 1...100_000)
         copy.historyLimit = copy.historyLimit.clamped(to: 10...200_000)
         copy.autoExportSeconds = copy.autoExportSeconds.clamped(to: 1...86_400)
         copy.fontSize = copy.fontSize.clamped(to: 10...22)
         copy.ttl = copy.ttl.clamped(to: 0...255)
-        copy.expansionLimit = copy.expansionLimit.clamped(to: 1...65_536)
+        copy.expansionLimit = copy.expansionLimit.clamped(to: 1...1_048_576)
         copy.hostList = copy.hostList.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
         if copy.visibleColumns.isEmpty {
             copy.visibleColumns = ColumnID.defaultVisible.map(\.rawValue)
@@ -221,6 +225,10 @@ struct AppSettings: Codable, Equatable, Sendable {
         if let patch = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
             for (key, value) in patch where !(value is NSNull) {
                 base[key] = value
+            }
+            if patch["attempts"] == nil {
+                if (patch["maxConcurrent"] as? Int) == 50 { base["maxConcurrent"] = 200 }
+                if (patch["expansionLimit"] as? Int) == 4096 { base["expansionLimit"] = 65_536 }
             }
         }
         let merged = try JSONSerialization.data(withJSONObject: base)

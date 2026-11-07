@@ -18,6 +18,8 @@ struct LaunchOptions: Equatable {
     var resolveAddresses: Bool?
     var windowTitle: String?
     var startImmediately: Bool?
+    var attempts: Int?
+    var findLocalNames: Bool?
     var unknown: [String] = []
 
     var requestsHeadless: Bool {
@@ -41,6 +43,8 @@ struct LaunchOptions: Equatable {
             && lhs.resolveAddresses == rhs.resolveAddresses
             && lhs.windowTitle == rhs.windowTitle
             && lhs.startImmediately == rhs.startImmediately
+            && lhs.attempts == rhs.attempts
+            && lhs.findLocalNames == rhs.findLocalNames
             && lhs.unknown == rhs.unknown
     }
 
@@ -108,6 +112,10 @@ struct LaunchOptions: Equatable {
                 options.windowTitle = takeValue()
             case "/startpingimmediately", "--start-immediately":
                 options.startImmediately = takeValue().flatMap(parseBool)
+            case "/attempts", "--attempts":
+                options.attempts = takeValue().flatMap(Int.init)
+            case "/localnames", "--local-names":
+                options.findLocalNames = takeValue().flatMap(parseBool)
             default:
                 if argument.hasPrefix("-") || argument.hasPrefix("/") {
                     options.unknown.append(argument)
@@ -132,6 +140,8 @@ struct LaunchOptions: Equatable {
         if let resolveAddresses { settings.resolveAddresses = resolveAddresses }
         if let windowTitle { settings.windowTitle = windowTitle }
         if let startImmediately { settings.startImmediately = startImmediately }
+        if let attempts { settings.attempts = attempts }
+        if let findLocalNames { settings.findLocalNames = findLocalNames }
     }
 
     static func headless(_ options: LaunchOptions) -> Int32 {
@@ -255,8 +265,10 @@ struct LaunchOptions: Equatable {
       /PingEverySeconds <seconds>  Kept for compatibility; a command-line save runs once
       /IPHostDescFormat <0|1>      1 uses "IP description" lines and Group: headers
       /PingSize <bytes>            ICMP payload size, default 32
-      /MaxConcurrentPings <count>  Default 50
-      /IPv6 <0|1>                  Allow IPv6 addresses and prefer AAAA lookups
+      /MaxConcurrentPings <count>  Default 200
+      /Attempts <count>            Tries per host before it counts as failed, default 2
+      /LocalNames <0|1>            Find single-label names with mDNS, LLMNR, NetBIOS; default 1
+      /IPv6 <0|1>                  Prefer IPv6 for names that have both (IPv6 literals always work)
       /ResolveEveryPing <0|1>
       /ResolveAddresses <0|1>
       /WindowTitle <text>

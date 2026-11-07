@@ -107,16 +107,18 @@ struct OptionsView: View {
             LabeledContent("Interval") { number($session.draft.intervalSeconds, 1...86_400, "seconds") }
             LabeledContent("Timeout") { number($session.draft.timeoutMs, 100...120_000, "ms") }
             LabeledContent("Packet size") { number($session.draft.payloadSize, 0...65_507, "bytes") }
-            LabeledContent("Concurrent pings") { number($session.draft.maxConcurrent, 1...500, "") }
+            LabeledContent("Tries per round") { number($session.draft.attempts, 1...10, "a host fails only if every try fails") }
+            LabeledContent("Concurrent pings") { number($session.draft.maxConcurrent, 1...4096, "") }
             LabeledContent("Time to live") { number($session.draft.ttl, 0...255, "0 uses the system default") }
             Toggle("Don't fragment IPv4 packets", isOn: $session.draft.dontFragment)
             TextField("Source address", text: $session.draft.sourceAddress)
-            Toggle("Allow IPv6 and try IPv6 first for names", isOn: $session.draft.allowIPv6)
+            Toggle("Prefer IPv6 when a name has both", isOn: $session.draft.allowIPv6)
+            Toggle("Find local names with mDNS, LLMNR, and NetBIOS", isOn: $session.draft.findLocalNames)
             Toggle("Resolve IP addresses to host names", isOn: $session.draft.resolveAddresses)
             Toggle("Resolve names again on every ping", isOn: $session.draft.resolveEveryPing)
             Toggle("Skip the network address in a CIDR range", isOn: $session.draft.skipFirstInCIDR)
             Toggle("Skip the broadcast address in a CIDR range", isOn: $session.draft.skipLastInCIDR)
-            LabeledContent("Expansion limit") { number($session.draft.expansionLimit, 1...65_536, "addresses") }
+            LabeledContent("Expansion limit") { number($session.draft.expansionLimit, 1...1_048_576, "addresses") }
         }
         .formStyle(.grouped)
     }

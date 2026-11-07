@@ -213,10 +213,6 @@ enum HostParser {
             warnings.append("Could not understand \(cleaned).")
             return
         }
-        if isIPv6Literal(endpoint.host) && !options.allowIPv6 {
-            warnings.append("Ignored IPv6 address \(endpoint.host) because IPv6 is turned off.")
-            return
-        }
         targets.append(ParsedTarget(host: endpoint.host, port: endpoint.port, description: description, group: group, order: 0))
     }
 

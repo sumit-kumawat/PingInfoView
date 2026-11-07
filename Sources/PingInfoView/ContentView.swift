@@ -19,6 +19,10 @@ struct ContentView: View {
                 warningBar
                 Divider()
             }
+            if model.localNetworkBlocked {
+                localNetworkBar
+                Divider()
+            }
             if model.settings.showLowerPane {
                 VSplitView {
                     HostTable()
@@ -159,6 +163,27 @@ struct ContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Color.orange.opacity(0.12))
+    }
+
+    private var localNetworkBar: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "network.slash")
+                .foregroundStyle(.red)
+            Text("macOS is blocking this Mac's local network for \(Brand.appName), so LAN hosts show as failed. Turn on \(Brand.appName) under Privacy & Security › Local Network.")
+                .font(.callout)
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            Button("Open Settings") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            Button("Dismiss") { model.localNetworkBlocked = false }
+                .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.red.opacity(0.10))
     }
 
     private var statusBar: some View {
